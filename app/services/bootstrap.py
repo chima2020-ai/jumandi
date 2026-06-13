@@ -103,21 +103,68 @@ def _add_enum_value(conn, enum_name: str, value: str) -> None:
         raise RuntimeError(f"Could not add '{value}' to enum {enum_name}")
 
 
+def migrate_user_role_to_varchar(engine: Engine) -> None:
+    """Store roles as lowercase strings — avoids PostgreSQL enum name/value mismatches."""
+    if engine.dialect.name != "postgresql":
+        return
+
+    try:
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            row = conn.execute(
+                text(
+                    """
+                    SELECT pg_type.typname
+                    FROM pg_attribute
+                    JOIN pg_class ON pg_class.oid = pg_attribute.attrelid
+                    JOIN pg_type ON pg_type.oid = pg_attribute.atttypid
+                    WHERE pg_class.relname = 'users'
+                      AND pg_attribute.attname = 'role'
+                      AND pg_type.typtype = 'e'
+                    LIMIT 1
+                    """
+                )
+            ).fetchone()
+            if not row:
+                return
+
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE users
+                    ALTER COLUMN role TYPE VARCHAR(20)
+                    USING (
+                        CASE lower(role::text)
+                            WHEN 'customer' THEN 'customer'
+                            WHEN 'delivery' THEN 'delivery'
+                            WHEN 'admin' THEN 'admin'
+                            ELSE lower(role::text)
+                        END
+                    )
+                    """
+                )
+            )
+            logger.info("Migrated users.role from PostgreSQL enum to VARCHAR")
+    except Exception as exc:
+        logger.exception("Could not migrate users.role column: %s", exc)
+
+
 def ensure_database_enums(engine: Engine) -> None:
+    migrate_user_role_to_varchar(engine)
+
     if engine.dialect.name != "postgresql":
         return
 
     try:
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
             enum_names = _postgres_role_enum_names(conn)
-            if not enum_names:
-                logger.warning("Could not find PostgreSQL enum type for users.role")
-                return
-
             for enum_name in enum_names:
-                _add_enum_value(conn, enum_name, "admin")
+                for value in ("customer", "delivery", "admin"):
+                    try:
+                        _add_enum_value(conn, enum_name, value)
+                    except Exception:
+                        pass
     except Exception as exc:
-        logger.exception("Could not extend role enum with admin: %s", exc)
+        logger.warning("Legacy enum extension skipped: %s", exc)
 
 
 def cleanup_test_admins(db: Session) -> None:
@@ -145,7 +192,9 @@ def admin_count(db: Session) -> int:
         return db.query(User).filter(User.role == UserRole.ADMIN).count()
     except Exception:
         db.rollback()
-        result = db.execute(text("SELECT COUNT(*) FROM users WHERE role::text = 'admin'"))
+        result = db.execute(
+            text("SELECT COUNT(*) FROM users WHERE lower(role::text) = 'admin'")
+        )
         return int(result.scalar() or 0)
 
 

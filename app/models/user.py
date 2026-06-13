@@ -24,8 +24,9 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(
         Enum(
             UserRole,
-            name="userrole",
             values_callable=lambda roles: [role.value for role in roles],
+            native_enum=False,
+            length=20,
         )
     )
     is_available: Mapped[bool] = mapped_column(default=True)  # for delivery agents

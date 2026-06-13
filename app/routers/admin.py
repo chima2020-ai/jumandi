@@ -305,6 +305,8 @@ def create_delivery_agent(
     user: User = Depends(require_role(UserRole.ADMIN)),
     db: Session = Depends(get_db),
 ):
+    ensure_database_enums(engine)
+
     if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -320,9 +322,22 @@ def create_delivery_agent(
         is_verified=True,
         is_available=True,
     )
-    db.add(agent)
-    db.commit()
-    db.refresh(agent)
+    try:
+        db.add(agent)
+        db.commit()
+        db.refresh(agent)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not create driver: {exc.orig if exc.orig else exc}",
+        ) from exc
     return agent
 
 

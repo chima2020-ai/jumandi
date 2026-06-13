@@ -4,9 +4,10 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import engine, get_db
 from app.models.user import User, UserRole
 from app.schemas.auth import (
     ForgotPassword,
@@ -17,6 +18,7 @@ from app.schemas.auth import (
     UserResponse,
     UserUpdate,
 )
+from app.services.bootstrap import ensure_database_enums
 from app.services.email_service import EmailServiceError, send_otp_email
 from app.utils.auth import (
     create_access_token,
@@ -58,6 +60,8 @@ def _send_otp_to_user(user: User, db: Session) -> str:
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 def register(data: UserRegister, db: Session = Depends(get_db)):
+    ensure_database_enums(engine)
+
     if data.role != UserRole.CUSTOMER:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -78,9 +82,22 @@ def register(data: UserRegister, db: Session = Depends(get_db)):
         role=data.role,
         is_verified=data.role == UserRole.DELIVERY,
     )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    try:
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not create account: {exc.orig if exc.orig else exc}",
+        ) from exc
 
     otp_message = None
     if data.role == UserRole.CUSTOMER:
