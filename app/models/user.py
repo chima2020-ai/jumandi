@@ -21,7 +21,13 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     phone: Mapped[str] = mapped_column(String(20))
     hashed_password: Mapped[str] = mapped_column(String(255))
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="userrole"))
+    role: Mapped[UserRole] = mapped_column(
+        Enum(
+            UserRole,
+            name="userrole",
+            values_callable=lambda roles: [role.value for role in roles],
+        )
+    )
     is_available: Mapped[bool] = mapped_column(default=True)  # for delivery agents
     current_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     current_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
