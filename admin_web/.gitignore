@@ -1,4 +1,4 @@
 node_modules
-dist
+# dist is committed for Render (no Node build on server)
 .DS_Store
 *.local

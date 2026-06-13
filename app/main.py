@@ -79,7 +79,7 @@ def _mount_admin_ui() -> None:
         def admin_ui_missing(path: str = ""):
             base = settings.app_url.rstrip("/")
             return {
-                "message": "Admin UI is not built yet. Redeploy with Docker to enable /admin.",
+                "message": "Admin UI files missing. Ensure admin_web/dist is deployed.",
                 "admin_api": f"{base}/api/admin/setup/status",
             }
 
