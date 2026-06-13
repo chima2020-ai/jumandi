@@ -1,0 +1,7 @@
+.git
+**/__pycache__
+*.pyc
+.env
+jumandi_app/
+*.db
+admin_web/node_modules

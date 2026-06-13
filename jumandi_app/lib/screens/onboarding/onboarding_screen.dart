@@ -98,12 +98,11 @@ class OnboardingScreen extends StatelessWidget {
             ),
             Expanded(
               flex: 4,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(height: 20),
                     Text(
                       'ENERGY ON\nDEMAND',
                       style: AppTextStyles.heading.copyWith(fontSize: 30, height: 1.1),
@@ -114,14 +113,14 @@ class OnboardingScreen extends StatelessWidget {
                       style: AppTextStyles.body,
                     ),
                     const SizedBox(height: 18),
-                    Row(
-                      children: const [
+                    const Row(
+                      children: [
                         FeatureCard(icon: Icons.bolt, title: 'Instant Access', subtitle: 'Tap to Refuel'),
                         SizedBox(width: 12),
                         FeatureCard(icon: Icons.precision_manufacturing, title: 'Mission Ready', subtitle: '24/7 Grid Support'),
                       ],
                     ),
-                    const Spacer(),
+                    const SizedBox(height: 20),
                     JumandiPrimaryButton(
                       label: 'NEXT DESTINATION',
                       icon: Icons.arrow_forward,
@@ -145,7 +144,6 @@ class OnboardingScreen extends StatelessWidget {
                         _dot(false),
                       ],
                     ),
-                    const SizedBox(height: 16),
                   ],
                 ),
               ),

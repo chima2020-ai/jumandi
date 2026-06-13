@@ -12,6 +12,7 @@ from app.schemas.admin import (
     DeliveryAgentUpdate,
 )
 from app.schemas.auth import UserResponse
+from app.services.bootstrap import admin_count
 from app.utils.auth import hash_password, require_role
 
 router = APIRouter(prefix="/admin", tags=["Admin"])

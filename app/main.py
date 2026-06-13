@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import Base, SessionLocal, engine
@@ -10,6 +12,8 @@ from app.routers import admin, auth, bookings, calls, chat, delivery, websocket
 from app.services.bootstrap import admin_count, ensure_admin_user, ensure_database_enums
 
 logger = logging.getLogger(__name__)
+
+ADMIN_DIST = Path(__file__).resolve().parent.parent / "admin_web" / "dist"
 
 
 @asynccontextmanager
@@ -61,28 +65,32 @@ def root():
         "url": base,
         "api": f"{base}/api",
         "docs": f"{base}/docs",
-        "admin_api": f"{base}/api/admin/setup/status",
-        "admin_note": "Admin UI is inside the Jumandi Flutter app at route /admin/login (not this API URL).",
+        "admin": f"{base}/admin",
         "websocket": base.replace("https://", "wss://").replace("http://", "ws://"),
     }
 
 
-@app.get("/admin")
-@app.get("/admin/login")
-@app.get("/admin/setup")
-def admin_ui_info():
-    base = settings.app_url.rstrip("/")
-    return {
-        "message": "This is the API server. The admin screen is in the Jumandi Flutter app.",
-        "how_to_open": "Run the Flutter app, go to Login, tap ADMIN PORTAL.",
-        "flutter_routes": {
-            "login": "/admin/login",
-            "setup": "/admin/setup",
-            "dashboard": "/admin",
-        },
-        "admin_api": {
-            "setup_status": f"{base}/api/admin/setup/status",
-            "create_first_admin": f"{base}/api/admin/setup",
-            "docs": f"{base}/docs",
-        },
-    }
+def _mount_admin_ui() -> None:
+    if not ADMIN_DIST.is_dir():
+        logger.warning("Admin UI not built — %s missing", ADMIN_DIST)
+
+        @app.get("/admin")
+        @app.get("/admin/{path:path}")
+        def admin_ui_missing(path: str = ""):
+            base = settings.app_url.rstrip("/")
+            return {
+                "message": "Admin UI is not built yet. Redeploy with Docker to enable /admin.",
+                "admin_api": f"{base}/api/admin/setup/status",
+            }
+
+        return
+
+    app.mount(
+        "/admin",
+        StaticFiles(directory=str(ADMIN_DIST), html=True),
+        name="admin-ui",
+    )
+    logger.info("Admin UI mounted at /admin from %s", ADMIN_DIST)
+
+
+_mount_admin_ui()
