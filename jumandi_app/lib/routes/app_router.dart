@@ -52,6 +52,13 @@ GoRouter createRouter(AuthProvider auth) {
           GoRoute(path: '/home/booking', builder: (_, __) => const BookingScreen()),
           GoRoute(path: '/home/history', builder: (_, __) => const HistoryScreen()),
           GoRoute(path: '/home/chat', builder: (_, __) => const ChatScreen()),
+          GoRoute(
+            path: '/home/chat/:bookingId',
+            builder: (_, state) {
+              final id = int.parse(state.pathParameters['bookingId']!);
+              return ChatScreen(bookingId: id);
+            },
+          ),
           GoRoute(path: '/home/profile', builder: (_, __) => const ProfileScreen()),
         ],
       ),
@@ -72,10 +79,10 @@ GoRouter createRouter(AuthProvider auth) {
         },
       ),
       GoRoute(
-        path: '/delivery/chat/:id',
+        path: '/delivery/chat/:bookingId',
         builder: (_, state) {
-          final id = int.parse(state.pathParameters['id']!);
-          return DeliveryChatScreen(customerId: id);
+          final id = int.parse(state.pathParameters['bookingId']!);
+          return DeliveryChatScreen(bookingId: id);
         },
       ),
     ],

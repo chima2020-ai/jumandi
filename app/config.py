@@ -17,10 +17,23 @@ class Settings(BaseSettings):
     brevo_smtp_login: str = ""
     brevo_smtp_host: str = "smtp-relay.brevo.com"
     brevo_smtp_port: int = 587
+    cors_origins: str = ""
 
     @property
     def smtp_login(self) -> str:
         return self.brevo_smtp_login or self.brevo_sender_email
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        origins = [
+            self.app_url.rstrip("/"),
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+            "http://10.0.2.2:8000",
+        ]
+        if self.cors_origins.strip():
+            origins.extend(o.strip() for o in self.cors_origins.split(",") if o.strip())
+        return list(dict.fromkeys(origins))
 
     model_config = SettingsConfigDict(
         env_file=".env" if Path(".env").exists() else None,

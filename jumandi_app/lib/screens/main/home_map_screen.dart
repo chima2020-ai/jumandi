@@ -1,15 +1,52 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../config/app_colors.dart';
 import '../../config/app_text_styles.dart';
+import '../../models/booking_model.dart';
+import '../../providers/app_providers.dart';
+import '../../services/api_service.dart';
+import '../../services/call_service.dart';
 import '../../widgets/common/jumandi_app_bar.dart';
 
-class HomeMapScreen extends StatelessWidget {
+class HomeMapScreen extends StatefulWidget {
   const HomeMapScreen({super.key});
 
   @override
+  State<HomeMapScreen> createState() => _HomeMapScreenState();
+}
+
+class _HomeMapScreenState extends State<HomeMapScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<BookingProvider>().loadCustomerBookings();
+    });
+  }
+
+  Future<void> _callDriver() async {
+    final booking = context.read<BookingProvider>().activeCustomerBooking;
+    if (booking == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No active delivery to call yet')),
+      );
+      return;
+    }
+    try {
+      await context.read<CallService>().startCall(booking.id);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final activeBooking = context.watch<BookingProvider>().activeCustomerBooking;
+
     return Scaffold(
       backgroundColor: AppColors.black,
       appBar: const JumandiAppBar(showMenu: false),
@@ -18,7 +55,7 @@ class HomeMapScreen extends StatelessWidget {
         child: Column(
           children: [
             const Spacer(),
-            _fleetCard(context),
+            _fleetCard(context, activeBooking),
             const SizedBox(height: 12),
             _quickRefuelCard(context),
           ],
@@ -27,7 +64,7 @@ class HomeMapScreen extends StatelessWidget {
     );
   }
 
-  Widget _fleetCard(BuildContext context) {
+  Widget _fleetCard(BuildContext context, BookingModel? activeBooking) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -44,15 +81,24 @@ class HomeMapScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('ACTIVE FLEET', style: AppTextStyles.label),
-                    Text('Tanker #0842', style: AppTextStyles.heading.copyWith(color: AppColors.brandGold, fontSize: 22)),
+                    Text(
+                      activeBooking != null ? 'Booking #${activeBooking.id}' : 'No active delivery',
+                      style: AppTextStyles.heading.copyWith(
+                        color: AppColors.brandGold,
+                        fontSize: 22,
+                      ),
+                    ),
                   ],
                 ),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('ARRIVAL', style: AppTextStyles.label),
-                  Text('12 MIN', style: AppTextStyles.headingSmall),
+                  Text('STATUS', style: AppTextStyles.label),
+                  Text(
+                    activeBooking?.status.label ?? 'IDLE',
+                    style: AppTextStyles.headingSmall,
+                  ),
                 ],
               ),
             ],
@@ -74,14 +120,21 @@ class HomeMapScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppColors.input,
+              Material(
+                color: AppColors.input,
+                borderRadius: BorderRadius.circular(10),
+                child: InkWell(
+                  onTap: activeBooking != null ? _callDriver : null,
                   borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: Icon(
+                      Icons.phone,
+                      color: activeBooking != null ? AppColors.brandGold : AppColors.textMuted,
+                    ),
+                  ),
                 ),
-                child: const Icon(Icons.headset_mic, color: AppColors.brandGold),
               ),
             ],
           ),

@@ -53,7 +53,7 @@ class CallInitiateResult {
       contactName: json['contact_name'] as String,
       contactPhone: json['contact_phone'] as String,
       telUri: json['tel_uri'] as String,
-      message: json['message'] as String,
+      message: json['message'] as String? ?? 'Call initiated. Use your phone dialer to connect.',
     );
   }
 }

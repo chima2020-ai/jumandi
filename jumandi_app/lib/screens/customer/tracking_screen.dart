@@ -8,6 +8,7 @@ import '../../models/booking_model.dart';
 import '../../providers/app_providers.dart';
 import '../../services/api_service.dart';
 import '../../services/websocket_service.dart';
+import '../../widgets/common/call_icon_button.dart';
 
 class TrackingScreen extends StatefulWidget {
   const TrackingScreen({super.key, required this.bookingId});
@@ -111,7 +112,12 @@ class _TrackingScreenState extends State<TrackingScreen> {
     final center = _agentPosition ?? LatLng(_booking!.latitude, _booking!.longitude);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Track delivery')),
+      appBar: AppBar(
+        title: const Text('Track delivery'),
+        actions: [
+          CallIconButton(bookingId: widget.bookingId, color: Colors.white),
+        ],
+      ),
       body: GoogleMap(
         initialCameraPosition: CameraPosition(target: center, zoom: 14),
         markers: _buildMarkers(),

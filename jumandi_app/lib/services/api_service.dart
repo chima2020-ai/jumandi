@@ -1,13 +1,13 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../config/app_config.dart';
 import '../models/booking_model.dart';
 import '../models/call_model.dart';
 import '../models/chat_message_model.dart';
 import '../models/user_model.dart';
+import 'session_storage.dart';
 
 class ApiException implements Exception {
   ApiException(this.message);
@@ -31,7 +31,7 @@ class ApiService {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final token = await _storage.read(key: AppConfig.tokenKey);
+          final token = await _storage.read(AppConfig.tokenKey);
           if (token != null) {
             options.headers['Authorization'] = 'Bearer $token';
           }
@@ -42,9 +42,12 @@ class ApiService {
   }
 
   late final Dio _dio;
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final SessionStorage _storage = SessionStorage();
 
   String _extractError(DioException e) {
+    if (e.type == DioExceptionType.connectionError && e.response == null) {
+      return 'Cannot reach the API. If you are on web, redeploy the backend with CORS enabled for localhost.';
+    }
     final data = e.response?.data;
     if (data is Map && data['detail'] != null) {
       final detail = data['detail'];
@@ -90,11 +93,11 @@ class ApiService {
     try {
       final response = await _dio.post(
         '/api/auth/login',
-        data: FormData.fromMap({
+        data: {
           'username': email,
           'password': password,
-        }),
-        options: Options(contentType: 'multipart/form-data'),
+        },
+        options: Options(contentType: Headers.formUrlEncodedContentType),
       );
       final token = response.data['access_token'] as String;
       final user = UserModel.fromJson(response.data['user'] as Map<String, dynamic>);
@@ -106,21 +109,21 @@ class ApiService {
   }
 
   Future<UserModel?> getStoredUser() async {
-    final raw = await _storage.read(key: AppConfig.userKey);
+    final raw = await _storage.read(AppConfig.userKey);
     if (raw == null) return null;
     return UserModel.fromJson(jsonDecode(raw) as Map<String, dynamic>);
   }
 
-  Future<String?> getToken() => _storage.read(key: AppConfig.tokenKey);
+  Future<String?> getToken() => _storage.read(AppConfig.tokenKey);
 
   Future<void> saveSession(String token, UserModel user) async {
-    await _storage.write(key: AppConfig.tokenKey, value: token);
-    await _storage.write(key: AppConfig.userKey, value: jsonEncode(user.toJson()));
+    await _storage.write(AppConfig.tokenKey, token);
+    await _storage.write(AppConfig.userKey, jsonEncode(user.toJson()));
   }
 
   Future<void> clearSession() async {
-    await _storage.delete(key: AppConfig.tokenKey);
-    await _storage.delete(key: AppConfig.userKey);
+    await _storage.delete(AppConfig.tokenKey);
+    await _storage.delete(AppConfig.userKey);
   }
 
   Future<BookingModel> createBooking({

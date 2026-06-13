@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../config/app_colors.dart';
 import '../../config/app_text_styles.dart';
+import '../../providers/app_providers.dart';
+import '../../widgets/common/call_icon_button.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  const ChatScreen({super.key, this.bookingId});
+
+  final int? bookingId;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -12,9 +17,35 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _controller = TextEditingController();
+  int? _bookingId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _resolveBooking());
+  }
+
+  Future<void> _resolveBooking() async {
+    if (widget.bookingId != null) {
+      setState(() => _bookingId = widget.bookingId);
+      return;
+    }
+    final bookings = context.read<BookingProvider>();
+    await bookings.loadCustomerBookings();
+    if (!mounted) return;
+    setState(() => _bookingId = bookings.activeCustomerBooking?.id);
+  }
+
+  void _callUnavailable() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No active delivery to call yet')),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final bookingId = _bookingId;
+
     return Scaffold(
       backgroundColor: AppColors.black,
       appBar: AppBar(
@@ -28,10 +59,14 @@ class _ChatScreenState extends State<ChatScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Driver Jaxson', style: AppTextStyles.logo.copyWith(fontSize: 18)),
+                Text('Driver', style: AppTextStyles.logo.copyWith(fontSize: 18)),
                 Row(
                   children: [
-                    Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.brandYellow, shape: BoxShape.circle)),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(color: AppColors.brandYellow, shape: BoxShape.circle),
+                    ),
                     const SizedBox(width: 6),
                     Text('Active Now', style: AppTextStyles.caption.copyWith(color: AppColors.white)),
                   ],
@@ -41,10 +76,20 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.phone_outlined, color: AppColors.white), onPressed: () {}),
+          if (bookingId != null)
+            CallIconButton(bookingId: bookingId, color: AppColors.white)
+          else
+            IconButton(
+              icon: const Icon(Icons.phone_outlined, color: AppColors.white),
+              onPressed: _callUnavailable,
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
-            child: CircleAvatar(radius: 16, backgroundColor: AppColors.card, child: Icon(Icons.person, size: 18, color: AppColors.brandGold)),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: AppColors.card,
+              child: Icon(Icons.person, size: 18, color: AppColors.brandGold),
+            ),
           ),
         ],
       ),
@@ -115,7 +160,11 @@ class _ChatScreenState extends State<ChatScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        CircleAvatar(radius: 14, backgroundColor: AppColors.card, child: Icon(Icons.person, size: 14, color: AppColors.brandGold)),
+        CircleAvatar(
+          radius: 14,
+          backgroundColor: AppColors.card,
+          child: Icon(Icons.person, size: 14, color: AppColors.brandGold),
+        ),
         const SizedBox(width: 8),
         Flexible(
           child: Column(

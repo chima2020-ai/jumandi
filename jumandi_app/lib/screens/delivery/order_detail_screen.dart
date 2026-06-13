@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../config/app_colors.dart';
 import '../../config/app_text_styles.dart';
 import '../../providers/app_providers.dart';
+import '../../widgets/common/call_icon_button.dart';
 import '../../widgets/common/delivery_bottom_nav.dart';
 import '../../widgets/common/jumandi_button.dart';
 
@@ -229,8 +230,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ),
               IconButton(
                 icon: const Icon(Icons.chat_bubble_outline, color: AppColors.white),
-                onPressed: () => context.push('/delivery/chat/1'),
+                onPressed: () => context.push('/delivery/chat/${widget.orderId}'),
               ),
+              CallIconButton(bookingId: widget.orderId, color: AppColors.brandYellow),
             ],
           ),
           const Divider(color: AppColors.inputBorder, height: 24),

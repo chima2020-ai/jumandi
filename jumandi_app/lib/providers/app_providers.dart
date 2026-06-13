@@ -2,20 +2,28 @@ import 'package:flutter/foundation.dart';
 
 import '../models/booking_model.dart';
 import '../models/user_model.dart';
+import '../services/api_service.dart';
 
 class AuthProvider extends ChangeNotifier {
+  AuthProvider(this._api);
+
+  final ApiService _api;
   UserModel? _user;
+  String? _token;
   bool _loading = true;
   String? _error;
 
   UserModel? get user => _user;
+  String? get token => _token;
   bool get loading => _loading;
   String? get error => _error;
-  bool get isLoggedIn => _user != null;
+  bool get isLoggedIn => _user != null && _token != null;
   bool get isCustomer => _user?.role == UserRole.customer;
   bool get isDelivery => _user?.role == UserRole.delivery;
 
   Future<void> init() async {
+    _token = await _api.getToken();
+    _user = await _api.getStoredUser();
     _loading = false;
     notifyListeners();
   }
@@ -27,16 +35,24 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     _error = null;
     notifyListeners();
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    _user = UserModel(
-      id: 1,
-      name: role == UserRole.delivery ? 'Marcus V. Sterling' : 'Alex Sterling',
-      email: email.isEmpty ? 'demo@jumandi.com' : email,
-      phone: '+1 (555) 942-0192',
-      role: role,
-    );
-    notifyListeners();
-    return true;
+    try {
+      final (token, user) = await _api.login(email: email, password: password);
+      if (user.role != role) {
+        _error = role == UserRole.delivery
+            ? 'This account is not a delivery agent'
+            : 'This account is not a customer';
+        notifyListeners();
+        return false;
+      }
+      _token = token;
+      _user = user;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<bool> register({
@@ -48,34 +64,58 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     _error = null;
     notifyListeners();
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    _user = UserModel(
-      id: 1,
-      name: name.isEmpty ? 'Alex Sterling' : name,
-      email: email.isEmpty ? 'demo@jumandi.com' : email,
-      phone: phone.isEmpty ? '+1 (555) 942-0192' : phone,
-      role: role,
-    );
-    notifyListeners();
-    return true;
+    try {
+      final (token, user) = await _api.register(
+        name: name,
+        email: email,
+        phone: phone,
+        password: password,
+        role: role,
+      );
+      _token = token;
+      _user = user;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<bool> verifyOtp(String code) async {
     _error = null;
     notifyListeners();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    return true;
+    try {
+      final user = await _api.verifyOtp(code);
+      _user = user;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<bool> resendOtp() async {
     _error = null;
     notifyListeners();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    return true;
+    try {
+      await _api.sendOtp();
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<void> logout() async {
+    await _api.clearSession();
     _user = null;
+    _token = null;
     notifyListeners();
   }
 
@@ -86,16 +126,14 @@ class AuthProvider extends ChangeNotifier {
 }
 
 class BookingProvider extends ChangeNotifier {
-  BookingProvider() {
-    _seedDemoData();
-  }
+  BookingProvider(this._api);
 
+  final ApiService _api;
   List<BookingModel> _customerBookings = [];
   List<BookingModel> _pendingBookings = [];
   List<BookingModel> _deliveryBookings = [];
   bool _loading = false;
   String? _error;
-  int _nextId = 100;
 
   List<BookingModel> get bookings => _customerBookings;
   List<BookingModel> get pendingBookings => _pendingBookings;
@@ -103,69 +141,56 @@ class BookingProvider extends ChangeNotifier {
   bool get loading => _loading;
   String? get error => _error;
 
-  void _seedDemoData() {
-    final demoCustomer = UserModel(
-      id: 2,
-      name: 'Sarah Chen',
-      email: 'sarah@example.com',
-      phone: '+1 (555) 801-4421',
-      role: UserRole.customer,
-    );
-    _pendingBookings = [
-      BookingModel(
-        id: 1,
-        customerId: 2,
-        gasKg: 12.5,
-        address: '742 Evergreen Terrace',
-        latitude: 37.7749,
-        longitude: -122.4194,
-        notes: 'Leave at gate',
-        status: BookingStatus.pending,
-        createdAt: DateTime.now().subtract(const Duration(minutes: 12)),
-        customer: demoCustomer,
-      ),
-    ];
-    _customerBookings = [
-      BookingModel(
-        id: 2,
-        customerId: 1,
-        gasKg: 24.5,
-        address: '123 Main Street',
-        latitude: 37.7849,
-        longitude: -122.4094,
-        status: BookingStatus.delivered,
-        createdAt: DateTime.now().subtract(const Duration(days: 2)),
-        deliveredAt: DateTime.now().subtract(const Duration(days: 2, hours: -1)),
-      ),
-    ];
-    _deliveryBookings = [];
+  BookingModel? get activeCustomerBooking {
+    for (final booking in _customerBookings) {
+      if (booking.status == BookingStatus.accepted ||
+          booking.status == BookingStatus.inTransit) {
+        return booking;
+      }
+    }
+    return null;
   }
 
   Future<void> loadCustomerBookings() async {
     _loading = true;
     _error = null;
     notifyListeners();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    _loading = false;
-    notifyListeners();
+    try {
+      _customerBookings = await _api.getMyBookings();
+    } on ApiException catch (e) {
+      _error = e.message;
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> loadPendingBookings() async {
     _loading = true;
     _error = null;
     notifyListeners();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    _loading = false;
-    notifyListeners();
+    try {
+      _pendingBookings = await _api.getPendingBookings();
+    } on ApiException catch (e) {
+      _error = e.message;
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> loadMyDeliveries() async {
     _loading = true;
     _error = null;
     notifyListeners();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    _loading = false;
-    notifyListeners();
+    try {
+      _deliveryBookings = await _api.getMyDeliveries();
+    } on ApiException catch (e) {
+      _error = e.message;
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
   }
 
   Future<BookingModel?> createBooking({
@@ -177,39 +202,68 @@ class BookingProvider extends ChangeNotifier {
   }) async {
     _error = null;
     notifyListeners();
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    final booking = BookingModel(
-      id: _nextId++,
-      customerId: 1,
-      gasKg: gasKg,
-      address: address,
-      latitude: latitude,
-      longitude: longitude,
-      notes: notes,
-      status: BookingStatus.pending,
-      createdAt: DateTime.now(),
-    );
-    _customerBookings = [booking, ..._customerBookings];
-    notifyListeners();
-    return booking;
+    try {
+      final booking = await _api.createBooking(
+        gasKg: gasKg,
+        address: address,
+        latitude: latitude,
+        longitude: longitude,
+        notes: notes,
+      );
+      _customerBookings = [booking, ..._customerBookings];
+      notifyListeners();
+      return booking;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return null;
+    }
   }
 
   Future<bool> acceptBooking(int id) async {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    _pendingBookings = _pendingBookings.where((b) => b.id != id).toList();
-    notifyListeners();
-    return true;
+    try {
+      final booking = await _api.acceptBooking(id);
+      _pendingBookings = _pendingBookings.where((b) => b.id != id).toList();
+      _deliveryBookings = [booking, ..._deliveryBookings];
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<bool> startDelivery(int id) async {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    notifyListeners();
-    return true;
+    try {
+      final booking = await _api.startDelivery(id);
+      _replaceDeliveryBooking(booking);
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    }
   }
 
   Future<bool> completeDelivery(int id) async {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    notifyListeners();
-    return true;
+    try {
+      final booking = await _api.completeDelivery(id);
+      _replaceDeliveryBooking(booking);
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  void _replaceDeliveryBooking(BookingModel booking) {
+    _deliveryBookings = [
+      booking,
+      ..._deliveryBookings.where((b) => b.id != booking.id),
+    ];
   }
 }

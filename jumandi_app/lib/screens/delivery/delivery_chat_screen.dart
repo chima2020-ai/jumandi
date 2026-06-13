@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../config/app_colors.dart';
 import '../../config/app_text_styles.dart';
-import '../../widgets/common/delivery_bottom_nav.dart';
+import '../../widgets/common/call_icon_button.dart';
 
 class DeliveryChatScreen extends StatefulWidget {
-  const DeliveryChatScreen({super.key, required this.customerId});
+  const DeliveryChatScreen({super.key, required this.bookingId});
 
-  final int customerId;
+  final int bookingId;
 
   @override
   State<DeliveryChatScreen> createState() => _DeliveryChatScreenState();
@@ -40,7 +40,7 @@ class _DeliveryChatScreenState extends State<DeliveryChatScreen> {
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.phone_outlined, color: AppColors.brandYellow), onPressed: () {}),
+          CallIconButton(bookingId: widget.bookingId, color: AppColors.brandYellow),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: CircleAvatar(radius: 16, backgroundColor: AppColors.card, child: Icon(Icons.person, size: 18, color: AppColors.brandGold)),
