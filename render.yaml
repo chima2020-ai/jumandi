@@ -1,12 +1,14 @@
 services:
   - type: web
     name: jumandi-api
-    runtime: docker
+    runtime: python
     plan: free
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
       - key: SECRET_KEY
         generateValue: true
       - key: APP_NAME
