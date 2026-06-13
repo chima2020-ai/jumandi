@@ -11,6 +11,16 @@ from app.utils.auth import hash_password
 
 logger = logging.getLogger(__name__)
 
+# Accidental QA accounts created while verifying production setup.
+_TEST_ADMIN_EMAILS = frozenset(
+    {
+        "testadmin555@jumandi.com",
+        "testadmin777@jumandi.com",
+        "testadmin888@jumandi.com",
+        "testadmin999@jumandi.com",
+    }
+)
+
 _ENUM_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
@@ -108,6 +118,26 @@ def ensure_database_enums(engine: Engine) -> None:
                 _add_enum_value(conn, enum_name, "admin")
     except Exception as exc:
         logger.exception("Could not extend role enum with admin: %s", exc)
+
+
+def cleanup_test_admins(db: Session) -> None:
+    """Remove one-off test admins so real first-time setup still works."""
+    try:
+        admins = db.query(User).filter(User.role == UserRole.ADMIN).all()
+    except Exception:
+        db.rollback()
+        return
+
+    if len(admins) != 1:
+        return
+
+    only = admins[0]
+    if only.email not in _TEST_ADMIN_EMAILS:
+        return
+
+    db.delete(only)
+    db.commit()
+    logger.info("Removed test admin account %s", only.email)
 
 
 def admin_count(db: Session) -> int:

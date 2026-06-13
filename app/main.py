@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import Base, SessionLocal, engine
 from app.routers import admin, auth, bookings, calls, chat, delivery, websocket
-from app.services.bootstrap import admin_count, ensure_admin_user, ensure_database_enums
+from app.services.bootstrap import admin_count, cleanup_test_admins, ensure_admin_user, ensure_database_enums
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
+        cleanup_test_admins(db)
         ensure_admin_user(db)
     except Exception as exc:
         logger.warning("Admin bootstrap skipped: %s", exc)
