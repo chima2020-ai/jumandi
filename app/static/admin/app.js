@@ -548,7 +548,9 @@ function pageAddDriver(root) {
           password: layout.querySelector('#password').value,
         },
       });
-      ok.textContent = `Driver ${agent.email} created!`;
+      ok.textContent = agent.email === layout.querySelector('#email').value.trim()
+        ? `Driver ${agent.email} ready! They can sign in on the app and will go to the delivery portal.`
+        : `Existing account upgraded to driver for ${agent.email}. Sign in on the app with these credentials.`;
       ok.classList.remove('hidden');
       setTimeout(() => nav('/drivers'), 2000);
     } catch (e) {

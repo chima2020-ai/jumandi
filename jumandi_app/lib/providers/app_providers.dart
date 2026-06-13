@@ -36,6 +36,13 @@ class AuthProvider extends ChangeNotifier {
     try {
       _token = await _api.getToken();
       _user = await _api.getStoredUser();
+      if (_token != null) {
+        try {
+          _user = await _api.getMe();
+        } catch (_) {
+          // Keep cached user if token expired or offline.
+        }
+      }
     } catch (e) {
       _error = e.toString();
     }
@@ -53,6 +60,9 @@ class AuthProvider extends ChangeNotifier {
       final (token, user) = await _api.login(email: email, password: password);
       _token = token;
       _user = user;
+      try {
+        _user = await _api.getMe();
+      } catch (_) {}
       notifyListeners();
       return true;
     } on ApiException catch (e) {

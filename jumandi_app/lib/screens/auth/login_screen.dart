@@ -38,6 +38,11 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       if (!mounted) return;
       if (ok) {
+        if (auth.isDelivery) {
+          await context.read<BookingProvider>().loadPendingBookings();
+          await context.read<BookingProvider>().loadMyDeliveries();
+        }
+        if (!mounted) return;
         context.go(auth.homeRoute);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -70,7 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Sign in as customer or delivery agent.',
+                      'Sign in with your customer or delivery driver account.',
                       style: AppTextStyles.body,
                       textAlign: TextAlign.center,
                     ),
@@ -144,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Delivery logins are created by admin.',
+                            'Delivery drivers: use the email and password created in admin.',
                             style: AppTextStyles.caption.copyWith(fontSize: 11),
                             textAlign: TextAlign.center,
                           ),

@@ -1,7 +1,7 @@
 enum UserRole { customer, delivery, admin }
 
 UserRole userRoleFromString(String value) {
-  switch (value) {
+  switch (value.toLowerCase().trim()) {
     case 'delivery':
       return UserRole.delivery;
     case 'admin':

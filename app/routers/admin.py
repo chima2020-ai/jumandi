@@ -307,11 +307,34 @@ def create_delivery_agent(
 ):
     ensure_database_enums(engine)
 
-    if db.query(User).filter(User.email == data.email).first():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        )
+    existing = db.query(User).filter(User.email == data.email).first()
+    if existing:
+        if existing.role == UserRole.DELIVERY:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A driver with this email already exists",
+            )
+        if existing.role == UserRole.ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot convert an admin account into a driver",
+            )
+        existing.name = data.name
+        existing.phone = data.phone
+        existing.hashed_password = hash_password(data.password)
+        existing.role = UserRole.DELIVERY
+        existing.is_verified = True
+        existing.is_available = True
+        try:
+            db.commit()
+            db.refresh(existing)
+        except SQLAlchemyError as exc:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Could not update account to driver: {exc.orig if exc.orig else exc}",
+            ) from exc
+        return existing
 
     agent = User(
         name=data.name,
