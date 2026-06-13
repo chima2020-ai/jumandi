@@ -18,7 +18,7 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
 def _admin_count(db: Session) -> int:
-    return db.query(User).filter(User.role == UserRole.ADMIN).count()
+    return admin_count(db)
 
 
 @router.get("/setup/status", response_model=AdminSetupStatus)
