@@ -23,7 +23,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        settings.app_url,
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://10.0.2.2:8000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -39,8 +44,12 @@ app.include_router(websocket.router)
 
 @app.get("/")
 def root():
+    base = settings.app_url.rstrip("/")
     return {
         "app": settings.app_name,
         "message": "Gas delivery booking API",
-        "docs": "/docs",
+        "url": base,
+        "api": f"{base}/api",
+        "docs": f"{base}/docs",
+        "websocket": base.replace("https://", "wss://").replace("http://", "ws://"),
     }

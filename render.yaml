@@ -8,11 +8,13 @@ services:
     healthCheckPath: /
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.11.11
       - key: SECRET_KEY
         generateValue: true
       - key: APP_NAME
         value: Jumandi
+      - key: APP_URL
+        value: https://jumandi.onrender.com
       - key: ALGORITHM
         value: HS256
       - key: ACCESS_TOKEN_EXPIRE_MINUTES

@@ -4,11 +4,11 @@ class AppConfig {
 
   static const String appName = 'Jumandi';
 
-  /// Local backend (Android emulator: use 10.0.2.2 instead of localhost)
-  static const String apiBaseUrl = 'http://10.0.2.2:8000';
+  /// Production backend (Render)
+  static const String apiBaseUrl = 'https://jumandi.onrender.com';
 
-  /// Production — uncomment when deployed to Render
-  // static const String apiBaseUrl = 'https://jumandi-api.onrender.com';
+  /// Local dev (Android emulator: use 10.0.2.2 instead of localhost)
+  // static const String apiBaseUrl = 'http://10.0.2.2:8000';
 
   static String get wsBaseUrl {
     final uri = Uri.parse(apiBaseUrl);
