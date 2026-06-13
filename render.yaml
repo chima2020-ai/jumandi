@@ -3,7 +3,7 @@ services:
     name: jumandi-api
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && cp -r admin_web/dist app/static/admin 2>/dev/null || true
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /
     envVars:

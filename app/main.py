@@ -13,7 +13,17 @@ from app.services.bootstrap import admin_count, ensure_admin_user, ensure_databa
 
 logger = logging.getLogger(__name__)
 
-ADMIN_DIST = Path(__file__).resolve().parent.parent / "admin_web" / "dist"
+ADMIN_DIST_CANDIDATES = (
+    Path(__file__).resolve().parent / "static" / "admin",
+    Path(__file__).resolve().parent.parent / "admin_web" / "dist",
+)
+
+
+def _resolve_admin_dist() -> Path | None:
+    for candidate in ADMIN_DIST_CANDIDATES:
+        if candidate.is_dir() and (candidate / "index.html").is_file():
+            return candidate
+    return None
 
 
 @asynccontextmanager
@@ -71,26 +81,31 @@ def root():
 
 
 def _mount_admin_ui() -> None:
-    if not ADMIN_DIST.is_dir():
-        logger.warning("Admin UI not built — %s missing", ADMIN_DIST)
+    admin_dist = _resolve_admin_dist()
+    if admin_dist is None:
+        logger.warning(
+            "Admin UI not found — checked %s",
+            ", ".join(str(p) for p in ADMIN_DIST_CANDIDATES),
+        )
 
         @app.get("/admin")
         @app.get("/admin/{path:path}")
         def admin_ui_missing(path: str = ""):
             base = settings.app_url.rstrip("/")
             return {
-                "message": "Admin UI files missing. Ensure admin_web/dist is deployed.",
+                "message": "Admin UI files missing on server.",
                 "admin_api": f"{base}/api/admin/setup/status",
+                "hint": "Redeploy the latest commit from GitHub.",
             }
 
         return
 
     app.mount(
         "/admin",
-        StaticFiles(directory=str(ADMIN_DIST), html=True),
+        StaticFiles(directory=str(admin_dist), html=True),
         name="admin-ui",
     )
-    logger.info("Admin UI mounted at /admin from %s", ADMIN_DIST)
+    logger.info("Admin UI mounted at /admin from %s", admin_dist)
 
 
 _mount_admin_ui()
