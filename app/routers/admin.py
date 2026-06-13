@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import engine, get_db
 from app.models.booking import Booking, BookingStatus
 from app.models.user import User, UserRole
 from app.schemas.admin import (
@@ -12,7 +13,7 @@ from app.schemas.admin import (
     DeliveryAgentUpdate,
 )
 from app.schemas.auth import UserResponse
-from app.services.bootstrap import admin_count
+from app.services.bootstrap import admin_count, ensure_database_enums
 from app.utils.auth import hash_password, require_role
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -31,6 +32,8 @@ def admin_setup_status(db: Session = Depends(get_db)):
 @router.post("/setup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def setup_first_admin(data: AdminCreate, db: Session = Depends(get_db)):
     """Create the first admin account when none exist yet."""
+    ensure_database_enums(engine)
+
     if _admin_count(db) > 0:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -52,9 +55,23 @@ def setup_first_admin(data: AdminCreate, db: Session = Depends(get_db)):
         is_verified=True,
         is_available=True,
     )
-    db.add(admin)
-    db.commit()
-    db.refresh(admin)
+    try:
+        db.add(admin)
+        db.commit()
+        db.refresh(admin)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not create admin account: {exc.orig if exc.orig else exc}",
+        ) from exc
+
     return admin
 
 

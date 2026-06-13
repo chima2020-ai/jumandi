@@ -1,6 +1,8 @@
 import logging
+import re
 
 from sqlalchemy import text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -9,8 +11,13 @@ from app.utils.auth import hash_password
 
 logger = logging.getLogger(__name__)
 
+_ENUM_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
-def _postgres_role_enum_name(conn) -> str | None:
+
+def _postgres_role_enum_names(conn) -> list[str]:
+    """Find PostgreSQL enum types used for user roles."""
+    names: list[str] = []
+
     row = conn.execute(
         text(
             """
@@ -25,7 +32,24 @@ def _postgres_role_enum_name(conn) -> str | None:
             """
         )
     ).fetchone()
-    return row[0] if row else None
+    if row:
+        names.append(row[0])
+
+    rows = conn.execute(
+        text(
+            """
+            SELECT DISTINCT t.typname
+            FROM pg_type t
+            JOIN pg_enum e ON e.enumtypid = t.oid
+            WHERE e.enumlabel IN ('customer', 'delivery')
+            """
+        )
+    ).fetchall()
+    for (enum_name,) in rows:
+        if enum_name not in names:
+            names.append(enum_name)
+
+    return names
 
 
 def _enum_has_value(conn, enum_name: str, value: str) -> bool:
@@ -44,25 +68,46 @@ def _enum_has_value(conn, enum_name: str, value: str) -> bool:
     return row is not None
 
 
-def ensure_database_enums(engine) -> None:
+def _add_enum_value(conn, enum_name: str, value: str) -> None:
+    if not _ENUM_NAME_RE.match(enum_name):
+        raise ValueError(f"Unsafe enum type name: {enum_name}")
+
+    quoted = f'"{enum_name}"'
+    if _enum_has_value(conn, enum_name, value):
+        return
+
+    for sql in (
+        f"ALTER TYPE {quoted} ADD VALUE IF NOT EXISTS '{value}'",
+        f"ALTER TYPE {quoted} ADD VALUE '{value}'",
+    ):
+        try:
+            conn.execute(text(sql))
+            logger.info("Added %s value to enum %s", value, enum_name)
+            return
+        except Exception as exc:
+            if "already exists" in str(exc).lower():
+                return
+            logger.warning("Enum alter attempt failed (%s): %s", sql, exc)
+
+    if not _enum_has_value(conn, enum_name, value):
+        raise RuntimeError(f"Could not add '{value}' to enum {enum_name}")
+
+
+def ensure_database_enums(engine: Engine) -> None:
     if engine.dialect.name != "postgresql":
         return
 
     try:
         with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-            enum_name = _postgres_role_enum_name(conn)
-            if not enum_name:
+            enum_names = _postgres_role_enum_names(conn)
+            if not enum_names:
                 logger.warning("Could not find PostgreSQL enum type for users.role")
                 return
 
-            if _enum_has_value(conn, enum_name, "admin"):
-                logger.info("Enum %s already includes admin", enum_name)
-                return
-
-            conn.execute(text(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS 'admin'"))
-            logger.info("Added admin value to enum %s", enum_name)
+            for enum_name in enum_names:
+                _add_enum_value(conn, enum_name, "admin")
     except Exception as exc:
-        logger.warning("Could not extend role enum with admin: %s", exc)
+        logger.exception("Could not extend role enum with admin: %s", exc)
 
 
 def admin_count(db: Session) -> int:

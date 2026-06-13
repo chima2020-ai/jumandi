@@ -24,7 +24,13 @@ async function api(path, options = {}) {
   const res = await fetch(`${API}${path}`, { ...options, headers });
   if (!res.ok) {
     let msg = 'Request failed';
-    try { const d = await res.json(); if (d.detail) msg = typeof d.detail === 'string' ? d.detail : msg; } catch {}
+    try {
+      const d = await res.json();
+      if (d.detail) {
+        if (typeof d.detail === 'string') msg = d.detail;
+        else if (Array.isArray(d.detail)) msg = d.detail.map(e => e.msg || e).join(', ');
+      }
+    } catch {}
     throw new Error(msg);
   }
   if (res.status === 204) return null;
