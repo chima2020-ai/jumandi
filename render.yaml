@@ -29,6 +29,12 @@ services:
         fromDatabase:
           name: jumandi-db
           property: connectionString
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        value: Jumandi Admin
 
 databases:
   - name: jumandi-db

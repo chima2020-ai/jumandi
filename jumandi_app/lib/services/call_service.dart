@@ -1,6 +1,5 @@
-import 'package:url_launcher/url_launcher.dart';
-
 import 'api_service.dart';
+import 'link_launcher.dart';
 
 class CallService {
   CallService(this._api);
@@ -13,8 +12,7 @@ class CallService {
     _busy = true;
     try {
       final result = await _api.initiateCall(bookingId);
-      final uri = Uri.parse(result.telUri);
-      final launched = await launchUrl(uri);
+      final launched = await LinkLauncher.openTel(result.telUri);
       if (!launched) {
         throw ApiException('Could not open the phone dialer');
       }
@@ -25,8 +23,7 @@ class CallService {
 
   Future<void> dialNumber(String phone) async {
     final digits = phone.replaceAll(RegExp(r'[^\d+]'), '');
-    final uri = Uri.parse('tel:$digits');
-    final launched = await launchUrl(uri);
+    final launched = await LinkLauncher.openTel('tel:$digits');
     if (!launched) {
       throw ApiException('Could not open the phone dialer');
     }

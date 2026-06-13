@@ -107,15 +107,21 @@ def main() -> None:
     record("PATCH /api/auth/me", code == 200, code, data.get("name", data))
 
     code, data = req("POST", "/api/auth/otp/send", token=ctoken)
-    otp_code = data.get("code") if isinstance(data, dict) else None
-    record("POST /api/auth/otp/send", code == 200, code, f"code={otp_code}" if otp_code else data)
+    record(
+        "POST /api/auth/otp/send",
+        code == 200,
+        code,
+        data.get("message", data) if isinstance(data, dict) else data,
+    )
 
-    if otp_code:
-        code, data = req("POST", "/api/auth/otp/verify", {"code": otp_code}, token=ctoken)
-        detail = data.get("is_verified", data) if isinstance(data, dict) else data
-        record("POST /api/auth/otp/verify", code == 200, code, detail)
-    else:
-        skipped.append(("POST /api/auth/otp/verify", "no otp code returned"))
+    # OTP verify requires code from email — test invalid code returns 400 not 500
+    code, data = req("POST", "/api/auth/otp/verify", {"code": "0000"}, token=ctoken)
+    record(
+        "POST /api/auth/otp/verify (invalid code)",
+        code == 400,
+        code,
+        data.get("detail", data) if isinstance(data, dict) else data,
+    )
 
     reset_email = f"reset_{uid}@jumandi.com"
     req(

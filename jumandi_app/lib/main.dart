@@ -50,6 +50,7 @@ class _JumandiAppState extends State<JumandiApp> {
         Provider<CallService>.value(value: _callService),
         ChangeNotifierProvider<AuthProvider>.value(value: _auth),
         ChangeNotifierProvider(create: (_) => BookingProvider(_api)),
+        ChangeNotifierProvider(create: (_) => AdminProvider(_api)),
       ],
       child: IncomingCallListener(
         child: MaterialApp.router(

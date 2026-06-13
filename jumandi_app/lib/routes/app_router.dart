@@ -1,6 +1,9 @@
 import 'package:go_router/go_router.dart';
 
 import '../providers/app_providers.dart';
+import '../screens/admin/admin_dashboard_screen.dart';
+import '../screens/admin/admin_login_screen.dart';
+import '../screens/admin/admin_setup_screen.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/otp_screen.dart';
 import '../screens/auth/register_screen.dart';
@@ -29,11 +32,41 @@ GoRouter createRouter(AuthProvider auth) {
       if (auth.loading) return null;
 
       final path = state.uri.path;
-      final isGuestAuthScreen =
-          path == '/login' || path == '/register' || path == '/otp';
+      const publicPaths = {
+        '/',
+        '/loading',
+        '/onboarding',
+        '/login',
+        '/register',
+        '/admin/login',
+        '/admin/setup',
+      };
 
-      if (auth.isLoggedIn && isGuestAuthScreen) {
-        return auth.isDelivery ? '/delivery' : '/home';
+      if (auth.isLoggedIn) {
+        if (auth.needsEmailVerification) {
+          if (path != '/otp') return '/otp';
+          return null;
+        }
+
+        if (path == '/login' ||
+            path == '/register' ||
+            path == '/otp' ||
+            path == '/admin/login' ||
+            path == '/admin/setup') {
+          return auth.homeRoute;
+        }
+
+        if (path.startsWith('/admin') && !auth.isAdmin) {
+          return auth.homeRoute;
+        }
+        if (path.startsWith('/delivery') && !auth.isDelivery) {
+          return auth.homeRoute;
+        }
+        if (path.startsWith('/home') && !auth.isCustomer) {
+          return auth.homeRoute;
+        }
+      } else if (!publicPaths.contains(path)) {
+        return '/login';
       }
 
       return null;
@@ -45,6 +78,9 @@ GoRouter createRouter(AuthProvider auth) {
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
       GoRoute(path: '/otp', builder: (_, __) => const OtpScreen()),
+      GoRoute(path: '/admin/login', builder: (_, __) => const AdminLoginScreen()),
+      GoRoute(path: '/admin/setup', builder: (_, __) => const AdminSetupScreen()),
+      GoRoute(path: '/admin', builder: (_, __) => const AdminDashboardScreen()),
       ShellRoute(
         builder: (_, __, child) => MainShell(child: child),
         routes: [

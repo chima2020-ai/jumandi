@@ -1,11 +1,36 @@
-enum UserRole { customer, delivery }
+enum UserRole { customer, delivery, admin }
 
 UserRole userRoleFromString(String value) {
-  return value == 'delivery' ? UserRole.delivery : UserRole.customer;
+  switch (value) {
+    case 'delivery':
+      return UserRole.delivery;
+    case 'admin':
+      return UserRole.admin;
+    default:
+      return UserRole.customer;
+  }
 }
 
 String userRoleToString(UserRole role) {
-  return role == UserRole.delivery ? 'delivery' : 'customer';
+  switch (role) {
+    case UserRole.delivery:
+      return 'delivery';
+    case UserRole.admin:
+      return 'admin';
+    case UserRole.customer:
+      return 'customer';
+  }
+}
+
+String userRoleLabel(UserRole role) {
+  switch (role) {
+    case UserRole.delivery:
+      return 'Delivery';
+    case UserRole.admin:
+      return 'Admin';
+    case UserRole.customer:
+      return 'Customer';
+  }
 }
 
 class UserModel {
@@ -51,5 +76,7 @@ class UserModel {
         'email': email,
         'phone': phone,
         'role': userRoleToString(role),
+        'is_verified': isVerified,
+        'is_available': isAvailable,
       };
 }

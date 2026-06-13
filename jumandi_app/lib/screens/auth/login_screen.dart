@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../config/app_colors.dart';
 import '../../config/app_text_styles.dart';
-import '../../models/user_model.dart';
 import '../../providers/app_providers.dart';
 import '../../widgets/common/jumandi_button.dart';
 import '../../widgets/common/jumandi_text_field.dart';
@@ -19,7 +18,6 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isUser = true;
   bool _obscure = true;
   bool _loading = false;
 
@@ -33,23 +31,21 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _submit() async {
     setState(() => _loading = true);
     final auth = context.read<AuthProvider>();
-    final ok = await auth.login(
-      _emailController.text.trim(),
-      _passwordController.text,
-      role: _isUser ? UserRole.customer : UserRole.delivery,
-    );
-    if (!mounted) return;
-    setState(() => _loading = false);
-    if (ok) {
-      if (auth.isDelivery || !_isUser) {
-        context.go('/delivery');
-      } else {
-        context.go('/home');
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(auth.error ?? 'Login failed')),
+    try {
+      final ok = await auth.login(
+        _emailController.text.trim(),
+        _passwordController.text,
       );
+      if (!mounted) return;
+      if (ok) {
+        context.go(auth.homeRoute);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(auth.error ?? 'Login failed')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -74,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Precision energy on-demand.',
+                      'Sign in as customer or delivery agent.',
                       style: AppTextStyles.body,
                       textAlign: TextAlign.center,
                     ),
@@ -88,13 +84,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: Column(
                         children: [
-                          UserPartnerToggle(
-                            isUser: _isUser,
-                            onChanged: (v) => setState(() => _isUser = v),
-                          ),
-                          const SizedBox(height: 24),
                           JumandiTextField(
-                            label: 'IDENTIFICATION',
+                            label: 'EMAIL',
                             controller: _emailController,
                             hint: 'email@jumandi.com',
                             prefixIcon: Icons.alternate_email,
@@ -102,7 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 18),
                           JumandiTextField(
-                            label: 'ENCRYPTION KEY',
+                            label: 'PASSWORD',
                             controller: _passwordController,
                             hint: '••••••••',
                             prefixIcon: Icons.lock_outline,
@@ -120,29 +111,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(height: 28),
                           JumandiPrimaryButton(
-                            label: 'AUTHENTICATE ACCESS',
+                            label: 'SIGN IN',
                             icon: Icons.bolt,
                             loading: _loading,
                             onPressed: _submit,
-                          ),
-                          const SizedBox(height: 24),
-                          Row(
-                            children: [
-                              Expanded(child: Divider(color: AppColors.inputBorder)),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
-                                child: Text('OR CONNECT VIA', style: AppTextStyles.label),
-                              ),
-                              Expanded(child: Divider(color: AppColors.inputBorder)),
-                            ],
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(child: _socialButton('G', 'GOOGLE')),
-                              const SizedBox(width: 12),
-                              Expanded(child: _socialButton('f', 'FACEBOOK')),
-                            ],
                           ),
                           const SizedBox(height: 24),
                           GestureDetector(
@@ -152,7 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               text: TextSpan(
                                 style: AppTextStyles.body,
                                 children: [
-                                  const TextSpan(text: 'New to the forge? '),
+                                  const TextSpan(text: 'New customer? '),
                                   TextSpan(
                                     text: 'CREATE ACCOUNT',
                                     style: AppTextStyles.button.copyWith(color: AppColors.brandYellow),
@@ -160,6 +132,21 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ],
                               ),
                             ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextButton.icon(
+                            onPressed: () => context.go('/admin/login'),
+                            icon: const Icon(Icons.admin_panel_settings, color: AppColors.brandGold),
+                            label: Text(
+                              'ADMIN PORTAL',
+                              style: AppTextStyles.button.copyWith(color: AppColors.brandGold),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Delivery logins are created by admin.',
+                            style: AppTextStyles.caption.copyWith(fontSize: 11),
+                            textAlign: TextAlign.center,
                           ),
                         ],
                       ),
@@ -170,24 +157,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _socialButton(String logo, String label) {
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: AppColors.input,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(logo, style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-          const SizedBox(width: 8),
-          Text(label, style: AppTextStyles.button.copyWith(color: AppColors.white, fontSize: 11)),
-        ],
       ),
     );
   }

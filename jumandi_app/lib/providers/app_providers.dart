@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../models/booking_model.dart';
+import '../models/chat_message_model.dart';
 import '../models/user_model.dart';
 import '../services/api_service.dart';
 
@@ -20,36 +21,46 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoggedIn => _user != null && _token != null;
   bool get isCustomer => _user?.role == UserRole.customer;
   bool get isDelivery => _user?.role == UserRole.delivery;
+  bool get isAdmin => _user?.role == UserRole.admin;
+  bool get needsEmailVerification =>
+      isCustomer && _user != null && !_user!.isVerified;
+
+  String get homeRoute {
+    if (isAdmin) return '/admin';
+    if (isDelivery) return '/delivery';
+    if (needsEmailVerification) return '/otp';
+    return '/home';
+  }
 
   Future<void> init() async {
-    _token = await _api.getToken();
-    _user = await _api.getStoredUser();
+    try {
+      _token = await _api.getToken();
+      _user = await _api.getStoredUser();
+    } catch (e) {
+      _error = e.toString();
+    }
     _loading = false;
     notifyListeners();
   }
 
   Future<bool> login(
     String email,
-    String password, {
-    UserRole role = UserRole.customer,
-  }) async {
+    String password,
+  ) async {
     _error = null;
     notifyListeners();
     try {
       final (token, user) = await _api.login(email: email, password: password);
-      if (user.role != role) {
-        _error = role == UserRole.delivery
-            ? 'This account is not a delivery agent'
-            : 'This account is not a customer';
-        notifyListeners();
-        return false;
-      }
       _token = token;
       _user = user;
       notifyListeners();
       return true;
     } on ApiException catch (e) {
       _error = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = e.toString();
       notifyListeners();
       return false;
     }
@@ -80,6 +91,10 @@ class AuthProvider extends ChangeNotifier {
       _error = e.message;
       notifyListeners();
       return false;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
     }
   }
 
@@ -93,6 +108,10 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } on ApiException catch (e) {
       _error = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _error = e.toString();
       notifyListeners();
       return false;
     }
@@ -125,6 +144,127 @@ class AuthProvider extends ChangeNotifier {
   }
 }
 
+class AdminProvider extends ChangeNotifier {
+  AdminProvider(this._api);
+
+  final ApiService _api;
+  List<UserModel> _deliveryAgents = [];
+  bool _loading = false;
+  String? _error;
+
+  List<UserModel> get deliveryAgents => _deliveryAgents;
+  bool get loading => _loading;
+  String? get error => _error;
+
+  Future<void> loadDeliveryAgents() async {
+    _loading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      _deliveryAgents = await _api.getDeliveryAgents();
+    } on ApiException catch (e) {
+      _error = e.message;
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<UserModel?> createDeliveryAgent({
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+  }) async {
+    _error = null;
+    notifyListeners();
+    try {
+      final agent = await _api.createDeliveryAgent(
+        name: name,
+        email: email,
+        phone: phone,
+        password: password,
+      );
+      _deliveryAgents = [agent, ..._deliveryAgents];
+      notifyListeners();
+      return agent;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<bool> updateDeliveryAgent({
+    required int id,
+    String? name,
+    String? phone,
+    String? password,
+    bool? isAvailable,
+  }) async {
+    _error = null;
+    notifyListeners();
+    try {
+      final agent = await _api.updateDeliveryAgent(
+        id: id,
+        name: name,
+        phone: phone,
+        password: password,
+        isAvailable: isAvailable,
+      );
+      _deliveryAgents = [
+        agent,
+        ..._deliveryAgents.where((a) => a.id != id),
+      ];
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<UserModel?> createAdminAccount({
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+  }) async {
+    _error = null;
+    notifyListeners();
+    try {
+      final admin = await _api.createAdminAccount(
+        name: name,
+        email: email,
+        phone: phone,
+        password: password,
+      );
+      notifyListeners();
+      return admin;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return null;
+    }
+  }
+
+  Future<bool> deleteDeliveryAgent(int id) async {
+    _error = null;
+    notifyListeners();
+    try {
+      await _api.deleteDeliveryAgent(id);
+      _deliveryAgents = _deliveryAgents.where((a) => a.id != id).toList();
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      return false;
+    }
+  }
+}
+
 class BookingProvider extends ChangeNotifier {
   BookingProvider(this._api);
 
@@ -150,6 +290,40 @@ class BookingProvider extends ChangeNotifier {
     }
     return null;
   }
+
+  BookingModel? get currentCustomerBooking {
+    for (final booking in _customerBookings) {
+      if (booking.status == BookingStatus.pending ||
+          booking.status == BookingStatus.accepted ||
+          booking.status == BookingStatus.inTransit) {
+        return booking;
+      }
+    }
+    return null;
+  }
+
+  BookingModel? get chatCustomerBooking {
+    for (final booking in _customerBookings) {
+      if (booking.status != BookingStatus.delivered &&
+          booking.status != BookingStatus.cancelled &&
+          booking.status != BookingStatus.declined) {
+        return booking;
+      }
+    }
+    return null;
+  }
+
+  List<BookingModel> get completedBookings => _customerBookings
+      .where(
+        (b) =>
+            b.status == BookingStatus.delivered ||
+            b.status == BookingStatus.cancelled,
+      )
+      .toList();
+
+  double get totalGasKgDelivered => _customerBookings
+      .where((b) => b.status == BookingStatus.delivered)
+      .fold(0, (sum, b) => sum + b.gasKg);
 
   Future<void> loadCustomerBookings() async {
     _loading = true;
@@ -265,5 +439,28 @@ class BookingProvider extends ChangeNotifier {
       booking,
       ..._deliveryBookings.where((b) => b.id != booking.id),
     ];
+  }
+
+  Future<List<ChatMessage>> loadChatMessages(int bookingId) async {
+    try {
+      return await _api.getChatMessages(bookingId);
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<ChatMessage> sendChatMessage({
+    required int bookingId,
+    required String content,
+  }) async {
+    try {
+      return await _api.sendChatMessage(bookingId: bookingId, content: content);
+    } on ApiException catch (e) {
+      _error = e.message;
+      notifyListeners();
+      rethrow;
+    }
   }
 }

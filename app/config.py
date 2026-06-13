@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     brevo_smtp_host: str = "smtp-relay.brevo.com"
     brevo_smtp_port: int = 587
     cors_origins: str = ""
+    admin_email: str = ""
+    admin_password: str = ""
+    admin_name: str = "Jumandi Admin"
+    admin_phone: str = "0000000000"
 
     @property
     def smtp_login(self) -> str:

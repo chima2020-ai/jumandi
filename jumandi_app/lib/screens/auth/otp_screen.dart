@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
+import 'package:provider/provider.dart';
 
 import '../../config/app_colors.dart';
 import '../../config/app_text_styles.dart';
+import '../../providers/app_providers.dart';
 import '../../widgets/common/jumandi_button.dart';
 import '../../widgets/common/jumandi_logo.dart';
 
@@ -41,21 +43,48 @@ class _OtpScreenState extends State<OtpScreen> {
   }
 
   Future<void> _verify() async {
+    final code = _controller.text.trim();
+    if (code.length != 4) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter the 4-digit code')),
+      );
+      return;
+    }
+
     setState(() => _loading = true);
-    await Future<void>.delayed(const Duration(milliseconds: 400));
-    if (!mounted) return;
-    setState(() => _loading = false);
-    context.go('/home');
+    final auth = context.read<AuthProvider>();
+    try {
+      final ok = await auth.verifyOtp(code);
+      if (!mounted) return;
+      if (ok) {
+        context.go('/home');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(auth.error ?? 'Invalid verification code')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _resend() async {
     if (_seconds > 0) return;
-    _startTimer();
-    setState(() {});
+
+    final auth = context.read<AuthProvider>();
+    final ok = await auth.resendOtp();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Verification code sent')),
-    );
+
+    if (ok) {
+      _startTimer();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Verification code sent')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(auth.error ?? 'Could not resend code')),
+      );
+    }
   }
 
   @override
@@ -67,14 +96,13 @@ class _OtpScreenState extends State<OtpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final email = context.watch<AuthProvider>().user?.email ?? 'your email';
+
     return Scaffold(
       backgroundColor: AppColors.black,
       appBar: AppBar(
         backgroundColor: AppColors.black,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.white),
-          onPressed: () => context.pop(),
-        ),
+        automaticallyImplyLeading: false,
         title: const JumandiWordmark(),
         centerTitle: true,
       ),
@@ -85,12 +113,16 @@ class _OtpScreenState extends State<OtpScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 24),
-              Text('SECURITY VERIFICATION', style: AppTextStyles.label.copyWith(color: AppColors.brandYellow), textAlign: TextAlign.center),
+              Text(
+                'SECURITY VERIFICATION',
+                style: AppTextStyles.label.copyWith(color: AppColors.brandYellow),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 12),
               Text('Enter Code', style: AppTextStyles.heading, textAlign: TextAlign.center),
               const SizedBox(height: 12),
               Text(
-                "We've sent a 4-digit industrial access key to your registered device.",
+                'We sent a 4-digit code to $email.',
                 style: AppTextStyles.body,
                 textAlign: TextAlign.center,
               ),
@@ -100,6 +132,7 @@ class _OtpScreenState extends State<OtpScreen> {
                 length: 4,
                 controller: _controller,
                 keyboardType: TextInputType.number,
+                onCompleted: (_) => _verify(),
                 pinTheme: PinTheme(
                   shape: PinCodeFieldShape.box,
                   borderRadius: BorderRadius.circular(12),
