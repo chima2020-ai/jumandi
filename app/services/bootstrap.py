@@ -1,7 +1,7 @@
 import logging
 import re
 
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
@@ -148,8 +148,26 @@ def migrate_user_role_to_varchar(engine: Engine) -> None:
         logger.exception("Could not migrate users.role column: %s", exc)
 
 
+def migrate_messages_read_at(engine: Engine) -> None:
+    """Add read_at to messages for read receipts."""
+    try:
+        insp = inspect(engine)
+        if "messages" not in insp.get_table_names():
+            return
+        columns = {col["name"] for col in insp.get_columns("messages")}
+        if "read_at" in columns:
+            return
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE messages ADD COLUMN read_at TIMESTAMP NULL"))
+            conn.commit()
+        logger.info("Added messages.read_at column")
+    except Exception as exc:
+        logger.warning("Could not migrate messages.read_at: %s", exc)
+
+
 def ensure_database_enums(engine: Engine) -> None:
     migrate_user_role_to_varchar(engine)
+    migrate_messages_read_at(engine)
 
     if engine.dialect.name != "postgresql":
         return

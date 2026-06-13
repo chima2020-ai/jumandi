@@ -14,6 +14,7 @@ class Message(Base):
     sender_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     content: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     sender = relationship("User", foreign_keys=[sender_id])
     booking = relationship("Booking", foreign_keys=[booking_id])

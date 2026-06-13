@@ -58,8 +58,28 @@ class MessageResponse(BaseModel):
     sender_name: str
     content: str
     created_at: datetime
+    read_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class ChatConversationResponse(BaseModel):
+    booking_id: int
+    other_user_id: int
+    other_user_name: str
+    booking_status: str
+    last_message: str | None = None
+    last_message_at: datetime | None = None
+    unread_count: int = 0
+
+
+class TypingRequest(BaseModel):
+    is_typing: bool = True
+
+
+class MarkReadResponse(BaseModel):
+    updated: int
+    message: str = "Messages marked as read"
 
 
 class MessageCreate(BaseModel):
