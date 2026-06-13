@@ -42,7 +42,7 @@ def _send_via_smtp(*, to_email: str, to_name: str, code: str) -> None:
             server.starttls()
             server.login(settings.smtp_login, settings.brevo_api_key)
             server.sendmail(settings.brevo_sender_email, [to_email], message.as_string())
-    except smtplib.SMTPException as exc:
+    except Exception as exc:
         raise EmailServiceError(f"Failed to send email via SMTP: {exc}") from exc
 
 

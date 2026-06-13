@@ -81,7 +81,7 @@ def register(data: UserRegister, db: Session = Depends(get_db)):
         try:
             _send_otp_to_user(user, db)
             otp_message = "Verification code sent to your email"
-        except EmailServiceError as exc:
+        except Exception as exc:
             otp_message = f"Account created but email failed: {exc}"
 
     token = create_access_token(user.id, user.role)
