@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: jumandi-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: APP_NAME
+        value: Jumandi
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 10080
+      - key: DATABASE_URL
+        fromDatabase:
+          name: jumandi-db
+          property: connectionString
+
+databases:
+  - name: jumandi-db
+    plan: free
+    databaseName: jumandi
+    user: jumandi

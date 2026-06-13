@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.py[cod]
+*.db
+.venv/
+venv/
+.idea/
+.vscode/
+
+# Flutter build artifacts (when git runs from repo root)
+jumandi_app/build/
+jumandi_app/.dart_tool/
+jumandi_app/.flutter-plugins-dependencies
