@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
     database_url: str = "sqlite:///./jumandi.db"
+    brevo_api_key: str = ""
+    brevo_sender_email: str = "chiapps20@gmail.com"
+    brevo_sender_name: str = "jumandi"
 
     model_config = SettingsConfigDict(
         env_file=".env" if Path(".env").exists() else None,

@@ -15,6 +15,12 @@ services:
         value: Jumandi
       - key: APP_URL
         value: https://jumandi.onrender.com
+      - key: BREVO_SENDER_EMAIL
+        value: chiapps20@gmail.com
+      - key: BREVO_SENDER_NAME
+        value: jumandi
+      - key: BREVO_API_KEY
+        sync: false
       - key: ALGORITHM
         value: HS256
       - key: ACCESS_TOKEN_EXPIRE_MINUTES

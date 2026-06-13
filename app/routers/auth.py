@@ -17,6 +17,7 @@ from app.schemas.auth import (
     UserResponse,
     UserUpdate,
 )
+from app.services.email_service import EmailServiceError, send_otp_email
 from app.utils.auth import (
     create_access_token,
     get_current_user,
@@ -35,11 +36,29 @@ def _generate_reset_token() -> str:
     return secrets.token_urlsafe(24)
 
 
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _is_expired(value: datetime | None) -> bool:
+    if value is None:
+        return True
+    expires_at = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    return expires_at < _utc_now()
+
+
 def _send_otp_to_user(user: User, db: Session) -> str:
     code = _generate_otp()
     user.otp_code = code
-    user.otp_expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
+    user.otp_expires_at = _utc_now() + timedelta(minutes=10)
     db.commit()
+    try:
+        send_otp_email(to_email=user.email, to_name=user.name, code=code)
+    except EmailServiceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
     return code
 
 
@@ -114,10 +133,9 @@ def send_otp(
     if user.is_verified:
         return {"message": "Account already verified"}
 
-    code = _send_otp_to_user(user, db)
+    _send_otp_to_user(user, db)
     return {
-        "message": "Verification code sent",
-        "code": code,
+        "message": "Verification code sent to your email",
     }
 
 
@@ -133,7 +151,7 @@ def verify_otp(
     if not user.otp_code or not user.otp_expires_at:
         raise HTTPException(status_code=400, detail="No verification code found")
 
-    if user.otp_expires_at < datetime.now(timezone.utc):
+    if _is_expired(user.otp_expires_at):
         raise HTTPException(status_code=400, detail="Verification code expired")
 
     if data.code.strip() != user.otp_code:
@@ -155,7 +173,7 @@ def forgot_password(data: ForgotPassword, db: Session = Depends(get_db)):
 
     token = _generate_reset_token()
     user.reset_token = token
-    user.reset_token_expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+    user.reset_token_expires_at = _utc_now() + timedelta(minutes=30)
     db.commit()
 
     return {
@@ -170,7 +188,7 @@ def reset_password(data: ResetPassword, db: Session = Depends(get_db)):
     if not user or not user.reset_token or not user.reset_token_expires_at:
         raise HTTPException(status_code=400, detail="Invalid reset request")
 
-    if user.reset_token_expires_at < datetime.now(timezone.utc):
+    if _is_expired(user.reset_token_expires_at):
         raise HTTPException(status_code=400, detail="Reset token expired")
 
     if data.token != user.reset_token:
