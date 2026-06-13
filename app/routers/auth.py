@@ -52,13 +52,7 @@ def _send_otp_to_user(user: User, db: Session) -> str:
     user.otp_code = code
     user.otp_expires_at = _utc_now() + timedelta(minutes=10)
     db.commit()
-    try:
-        send_otp_email(to_email=user.email, to_name=user.name, code=code)
-    except EmailServiceError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
+    send_otp_email(to_email=user.email, to_name=user.name, code=code)
     return code
 
 
@@ -82,11 +76,20 @@ def register(data: UserRegister, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
+    otp_message = None
     if data.role == UserRole.CUSTOMER:
-        _send_otp_to_user(user, db)
+        try:
+            _send_otp_to_user(user, db)
+            otp_message = "Verification code sent to your email"
+        except EmailServiceError as exc:
+            otp_message = f"Account created but email failed: {exc}"
 
     token = create_access_token(user.id, user.role)
-    return Token(access_token=token, user=UserResponse.model_validate(user))
+    return Token(
+        access_token=token,
+        user=UserResponse.model_validate(user),
+        message=otp_message,
+    )
 
 
 @router.post("/login", response_model=Token)
@@ -133,7 +136,13 @@ def send_otp(
     if user.is_verified:
         return {"message": "Account already verified"}
 
-    _send_otp_to_user(user, db)
+    try:
+        _send_otp_to_user(user, db)
+    except EmailServiceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
     return {
         "message": "Verification code sent to your email",
     }
